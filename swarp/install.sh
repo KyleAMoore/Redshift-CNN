@@ -1,16 +1,13 @@
 #!/usr/bin/env bash
 
-#ToDo: Add Options to specify directories from command line
-#ToDo: Add UsageScript.
-INSTALL_DIR = $HOME
+INSTALL_DIR=$HOME
+SOURCEFILE=${INSTALL_DIR}/.bashrc   # Where to add swarp to path
 
 if [[ $# > 0 ]];
     then
         INSTALL_DIR=$1
+        SOURCFILE=$2
 fi
-
-SOURCEFILE=${INSTALL_DIR}/.bashrc   # Where to add swarp to path
-
 # REMOVE DIRECTORY IF EXISTS
 
 # SCRATCH
