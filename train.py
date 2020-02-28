@@ -9,7 +9,7 @@
 """
 
 import numpy as np
-from model.model import RedshiftClassifierResNet, RedShiftClassifierInception
+from model.model import RedshiftClassifierResNet, RedshiftClassifierInception
 from time import time
 from sys import argv
 
@@ -69,7 +69,7 @@ if __name__ == "__main__":
     for i in range(1,len(argv)):
         arg = argv[i].lower()
         if arg == '-i':
-            archs.append(RedShiftClassifierInception)
+            archs.append(RedshiftClassifierInception)
             labels.append("incep")
         elif arg == '-r':
             archs.append(RedshiftClassifierResNet)

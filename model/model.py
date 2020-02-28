@@ -116,7 +116,7 @@ class RedshiftClassifierResNet(Model):
     def __repr__(self):
         return f"RedshiftResNet({self.input_shape[1:]},{self.output_shape[1]})"
 
-class RedShiftClassifierInception(Model):
+class RedshiftClassifierInception(Model):
     """
         This class is adapted from the model written by Umesh Timalsina
         of the Institute for Software Integrated Systems. The original
@@ -174,6 +174,10 @@ class RedShiftClassifierInception(Model):
         inception_layer5_out = self.add_inception_layer(pooling_layer3_out,
                                                         92, 128,
                                                         kernel_5=False)
+
+        #TODO: Change to use max pooling
+        #TODO: Make match original inception network for comparison ot ResNet
+        #TODO: comparre with keras-application inception-v3
 
         # input_to_pooling = cur_inception_in
         input_to_dense = Flatten(
@@ -238,7 +242,7 @@ class RedShiftClassifierInception(Model):
 
 def main():
     test_model_res = RedshiftClassifierResNet((128, 128, 5), 32)
-    test_model_inc = RedShiftClassifierInception((128, 128, 5), 32)
+    test_model_inc = RedshiftClassifierInception((128, 128, 5), 32)
 
     print(test_model_res.__repr__())
     print(test_model_res)
