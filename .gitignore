@@ -128,5 +128,11 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# Intellij
+# Data files
+data/
+*.pkl
+model/saved/
+
+# Editor
+.vscode/
 .idea/
