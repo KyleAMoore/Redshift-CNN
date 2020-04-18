@@ -3,33 +3,34 @@ from matplotlib import pyplot as plt
 from model import RedshiftClassifierResNet, RedshiftClassifierInception
 from pickle import dump, load
 from glob import glob, iglob
-from time import time
+from properscoring import crps_gaussian
 
-
-def test_model(directory, model, test_imgs, test_labels):
+def test_model(model, test_imgs, test_labels, directory):
+    """Tests the model across all of its epochs
+    
+    Args:
+        model (keras.Model): Compiled and trained keras model.
+        test_imgs (numpy.array): Array of test images
+        test_labels (numpy.array): Array of redshift values
+        directory (str): Locations of directories containing pre-trained model weights.
+    
+    Returns:
+        [type]: [description]
+    """
     with open(glob(directory+'*.hist')[0],'rb') as pkl:
         hist = load(pkl)
 
-    for weight_file in iglob(directory + '*weights.*.hdf5'):
+    for weight_file in iglob(directory + '*.hdf5'):
         print('Testing model saved in location: ' + weight_file)
         model.load_weights(weight_file)
-        start = time()
-        res = model.evaluate(test_imgs, test_labels)
-        test_time = time() - start
-        try:
-            hist['test_loss'].append(res[0])
-            hist['test_sparse_categorical_accuracy'].append(res[1])
-            hist['test_time'].append(test_time)
-        except KeyError:
-            hist['test_loss'] = [res[0]]
-            hist['test_sparse_categorical_accuracy'] = [res[1]]
-            hist['test_time'] = [test_time]
-
-        print('loss: ' + str(res[0]))
-        print('sparse categorical accuracy: '  + str(res[1]))
-        print('time: ' + str(test_time)+'s')
+        results = redshift_evaluate(model, test_imgs, test_labels)
+        
+        for k, v in results.items():
+            try:
+                hist[k].append(v)
+            except KeyError:
+                hist[k] = [v]
     
-    hist['test_time'] = sum(hist['test_time']) / len(hist['test_time'])
     hist['train_sparse_categorical_accuracy'] = hist['sparse_categorical_accuracy']
     hist['train_loss'] = hist['loss']
     del(hist['sparse_categorical_accuracy'])
@@ -37,64 +38,175 @@ def test_model(directory, model, test_imgs, test_labels):
 
     return hist
 
-def plot_hist(histories, labels, metrics, sets, output_filename):
-    fig, splts = plt.subplots(2,3,
-                              sharey='row',
-                              sharex='col',
-                              figsize=(len(sets)*4,len(metrics)*4))
+def redshift_evaluate(model, test_imgs, test_labels):
+    """Evaluates the model using the metrics defined in https://arxiv.org/abs/1806.06607
+    
+    Args:
+        model (keras.Model): Compiled and trained keras model.
+        test_imgs (numpy.array): Array of test images
+        test_labels (numpy.array): Array of redshift values
+    
+    Returns a dictionary with the following key-value pairs:
+        'pred_bias' (float): Average bias of the model.
+        'dev_MAD' (float): Deviation of the Median Absolute Deviation (MAD).
+        'frac_outliers' (float): Fraction of predictions that were outliers (defined as
+            having absolute bias >5x dev_MAD)
+        'avg_crps' (float):  Average Continuous Ranked Probability Score (CRPS)
+    """         
+    pdfs = model.predict(test_imgs)
+    
+    step = model.max_val / model.num_classes
+    bin_starts = np.arange(0,model.max_val,step)
+    preds = np.sum((bin_starts+(step/2)) * pdfs, axis=1) # midpoints
+
+    residuals = (preds - test_labels) / (test_labels + 1)
+    pred_bias = np.average(residuals)
+    dev_MAD = np.median(np.abs(residuals - np.median(residuals))) * 1.4826
+    frac_outliers = np.count_nonzero(np.abs(residuals) > (dev_MAD * 5)) / len(residuals)
+    crps = np.average(crps_gaussian(preds, np.mean(preds), np.std(preds)))
+
+    return {'pred_bias' : pred_bias,
+            'dev_MAD' : dev_MAD,
+            'frac_outliers' : frac_outliers,
+            'avg_crps' : crps}
+
+def plot_hist(histories, labels, output_filename):
+    """Plots model evaluation metrics in the below format
+
+        |----------------------------------| 
+        |tr_loss|val_loss |devMAD|  crps   | 
+        |----------------------------------| 
+        |tr_sca |val_sca  |outlir|pred_bias| 
+        |----------------------------------| 
+    """
+    fig, splts = plt.subplots(2,4, sharex='col', figsize=(16,8))
     
     for hist in histories:
-        for met_i, met in enumerate(metrics):
-            for set_i, set in enumerate(sets):
-                y = hist[set + '_' + met]
-                x = np.arange(0,len(y))+1
-                splts[met_i,set_i].plot(x,y,'.-')
-                
-    for set_i, set in enumerate(sets):
-        splts[0,set_i].set_title(set)
-        splts[1,set_i].set_xlabel('Epoch')
+        y = hist['train_loss']
+        x = np.arange(1,len(y)+1)
+        splts[0,0].plot(x,y,'.-')
 
-    for met_i, met in enumerate(metrics):
-        splts[met_i,0].set_ylabel(met)
+        y = hist['train_sparse_categorical_accuracy']
+        x = np.arange(1,len(y)+1)
+        splts[1,0].plot(x,y,'.-')
+
+        y = hist['val_loss']
+        x = np.arange(1,len(y)+1)
+        splts[0,1].plot(x,y,'.-')
+
+        y = hist['val_sparse_categorical_accuracy']
+        x = np.arange(1,len(y)+1)
+        splts[1,1].plot(x,y,'.-')
+
+        y = hist['dev_MAD']
+        x = np.arange(1,len(y)+1)
+        splts[0,2].plot(x,y,'.-')
+
+        y = hist['frac_outliers']
+        x = np.arange(1,len(y)+1)
+        splts[1,2].plot(x,y,'.-')
+
+        y = hist['avg_crps']
+        x = np.arange(1,len(y)+1)
+        splts[0,3].plot(x,y,'.-')
+
+        y = hist['pred_bias']
+        x = np.arange(1,len(y)+1)
+        splts[1,3].plot(x,y,'.-')
+                
+    splts[0,0].set_title('train loss')
+    splts[1,0].set_title('train sca')
+    splts[0,1].set_title('val loss')
+    splts[1,1].set_title('val_sca')
+    splts[0,2].set_title('dev MAD')
+    splts[1,2].set_title('fraction outliers')
+    splts[0,3].set_title('average CRPS')
+    splts[1,3].set_title('prediciton bias')
+
+    splts[1,0].set_xlabel('Epoch')
+    splts[1,1].set_xlabel('Epoch')
+    splts[1,2].set_xlabel('Epoch')
+    splts[1,3].set_xlabel('Epoch')
     
     splts[0,0].legend(labels)
 
-    # plt.show()
     plt.savefig(output_filename, bbox_inches='tight')
 
-if __name__ == "__main__":
-    with open('../data/cifar-10/prep/cifar-10-test.pkl','rb') as pkl:
-            test_imgs = load(pkl)
-            test_labels = load(pkl)
-            image_shape = (32,32,3)
-            num_classes = 10
-
-    test_imgs = test_imgs
-    test_labels = test_labels
-
-    try:
-        with open('saved/resnet/resnet_tested.pkl','rb') as pkl:
-            resnet_hist = load(pkl)
-    except(FileNotFoundError,IOError):
-        resnet_hist = test_model('saved/resnet/',
-                                 RedshiftClassifierResNet(image_shape, num_classes),
-                                 test_imgs, test_labels)
-        with open('saved/resnet/resnet_tested.pkl', 'wb') as pkl:
-            dump(resnet_hist, pkl)
-
-    try:
-        with open('saved/incep/incep_tested.pkl','rb') as pkl:
-            incep_hist = load(pkl)
-    except(FileNotFoundError, IOError):
-        incep_hist = test_model('saved/incep/',
-                                RedshiftClassifierInception(image_shape, num_classes),
-                                test_imgs, test_labels)
-        with open('saved/incep/incep_tested.pkl', 'wb') as pkl:
-            dump(incep_hist, pkl)
-
-    plot_hist(histories=[resnet_hist, incep_hist],
-              labels=['ResNet50', 'Inception'],
-              metrics=['sparse_categorical_accuracy','loss'],
-              sets=['train', 'val', 'test'],
-              output_filename='images/model_comp_cifar10.png')
+def eval_models(models, test_data_path, model_directories, model_labels, output_path):
+    """Evaluates and compares the models given on the same data
     
+    Args:
+        models (list: Keras.models): List of compiled keras models to be compared
+        test_data_path (str): location of data to be used for testing. Should be a pickle file
+            containing two numpy arrays (array of inputs followed by array of outputs)
+        model_directories (list: str): locations of directories containing pre-trained model
+            weights. The results of evaluation will also be stored in each of these directories
+        model_labels (list: str): labels to be used for each model in the plotted results
+        output_path (str): location to save the generated results plot
+    """    
+    with open(test_data_path, 'rb') as pkl:
+        test_imgs = load(pkl)
+        test_labels = load(pkl)
+
+    histories : list = []
+    for i,direc in enumerate(model_directories):
+        try:
+            with open(direc+'results.pkl','rb') as pkl:
+                histories.append(load(pkl))
+
+        except(FileNotFoundError, IOError):
+            hist = test_model(models[i], test_imgs, test_labels, direc)
+            with open(direc+'results.pkl', 'wb') as pkl:
+                dump(hist, pkl)
+            histories.append(hist)
+
+    plot_hist(histories, model_labels, output_path)
+
+def main(mode=0):
+    """
+        Runs one of a selection of preset evaluation sets.
+
+        mode must be an integer in the range [0,1]
+
+        1 - evaluates and compares a resnet model with an inception model
+            with both using their default hyperparameters. (DEFAULT)
+
+        2 - evaluates and compares a collection of resnet models of different
+            topology. Compares a total of 15 models which combined have every
+            combination of values of num_res_blocks and num_res_stacks in the
+            ranges [4,8] and [3,5] respectively
+    """
+    image_shape = (64,64,5)
+    num_classes = 32
+
+    if mode == 0:
+        models = [
+            RedshiftClassifierInception(image_shape, num_classes),
+            RedshiftClassifierResNet(image_shape, num_classes, num_res_blocks=6, num_res_stacks=4),
+        ]
+        directories = [
+            'saved/incep/',
+            'saved/resnet/'
+        ]
+        labels = [
+            'incep',
+            'resnet'
+        ]
+
+    elif mode == 1:
+        models = []
+        directories = []
+        labels = []
+        for num_blocks in range(4,9):
+            for num_stacks in range(3,6):
+                label = 'resnet-{b}-{s}'.format(b=num_blocks,s=num_stacks)
+                directories.append('saved/'+label+'/')
+                labels.append(label)
+                models.append(RedshiftClassifierResNet(image_shape, num_classes,
+                                                       num_res_blocks=num_blocks,
+                                                       num_res_stacks=num_stacks))
+
+    else:
+        raise ValueError('Mode must be one of the integers 0 or 1 (default=0)')
+
+    eval_models(models, '../data/SDSS/prep/sdss-test.pkl', directories, labels, 'images/model_comp.png')

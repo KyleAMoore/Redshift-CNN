@@ -1,8 +1,9 @@
 requests
+keras
+properscoring
 astropy
 click
 numpy
 pandas
-numpy
 matplotlib
 pillow

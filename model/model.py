@@ -9,8 +9,8 @@ class RedshiftClassifierResNet(Model):
     def __init__(self,
                  input_img_shape,
                  num_redshift_classes,
-                 num_res_blocks=8,
-                 num_res_stacks=3,
+                 num_res_blocks=6,
+                 num_res_stacks=4,
                  init_num_filters=16):
         """Initializes the ResNet model
 
@@ -50,9 +50,8 @@ class RedshiftClassifierResNet(Model):
                                                   ds_input=(stack>0 and block==0))
             num_filters *= 2
 
-        # Original paper uses GlobalAveragePooling in lieu of avg pool + dense,
-        # may be worth implementing and comparing
-        # pooling_layer2_out = GlobalAveragePooling2D()(residual_block4_out)
+        #* Original paper uses GlobalAveragePooling in lieu of avg pool + dense,
+        #* may be worth implementing and comparing
 
         # End Pooling Layer
         pooling_layer = AveragePooling2D(pool_size=int(weights.shape[1]))
@@ -60,10 +59,9 @@ class RedshiftClassifierResNet(Model):
 
         # Fully Connected Layers
         input_to_dense = Flatten(data_format='channels_last')(pooling_layer_out)
-        model_output = Dense(units=num_redshift_classes, activation='softmax')(((
-                Dense(units=1024, activation='relu')(
-                       input_to_dense))))
-
+        model_output = Dense(units=num_redshift_classes, activation='softmax')(
+                Dense(units=1024, activation='relu')(input_to_dense))
+    
         super().__init__(inputs=[image_input],outputs=model_output)
         self.compile(optimizer=Adam(lr=0.001),
                      loss='sparse_categorical_crossentropy',
@@ -124,6 +122,7 @@ class RedshiftClassifierInception(Model):
                  input_img_shape,
                  num_redshift_classes):
         """Initialize the model"""
+
         # Input Layer Galactic Images
         image_input = Input(shape=input_img_shape)
         # Convolution Layer 1
@@ -172,14 +171,10 @@ class RedshiftClassifierInception(Model):
                                                         92, 128,
                                                         kernel_5=False)
 
-        #TODO: Change to use max pooling
-        #TODO: Make match original inception network for comparison to ResNet
-        #TODO: compare with keras-application inception-v3
-
         # input_to_pooling = cur_inception_in
         input_to_dense = Flatten(
                             data_format='channels_last')(inception_layer5_out)
-        print(input_to_dense.shape)
+
         model_output = Dense(units=num_redshift_classes, activation='softmax')(((
                  Dense(units=1024, activation='relu')(
                        input_to_dense))))
@@ -235,13 +230,3 @@ class RedshiftClassifierInception(Model):
 
     def __repr__(self):
         return f"RedshiftInception({self.input_shape[1:]},{self.output_shape[1]})"
-
-if __name__ == "__main__":
-    test_model_res = RedshiftClassifierResNet((128, 128, 5), 32)
-    test_model_inc = RedshiftClassifierInception((128, 128, 5), 32)
-
-    print(test_model_res.__repr__())
-    print(test_model_res)
-
-    print(test_model_inc.__repr__())
-    print(test_model_inc)
