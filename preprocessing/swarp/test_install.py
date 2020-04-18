@@ -39,7 +39,7 @@ def install_swarp(install_script_path, volume):
     install_dir = DIR_PREFIX + volume
     job_id = submitShellCommandJob('bash {0} {1} nofile.txt'.format(DIR_PREFIX + install_script_path, install_dir),
                                    dockerComputeDomain=large_jobs_domain,
-                                   dockerImageName='Python + R',
+                                   dockerImageName='SciServer Essentials',
                                    userVolumes=[{'name': 'AstroResearch', 'needsWriteAccess': True}],
                                    dataVolumes=None,
                                    resultsFolderPath=DIR_PREFIX + volume + '/JobsLog',

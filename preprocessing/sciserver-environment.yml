@@ -1,0 +1,16 @@
+name: preprocess-env
+channels:
+  - conda-forge
+dependencies:
+  - python=3.7
+  - astromatic-swarp
+  - pip:
+      - requests
+      - astropy
+      - click
+      - numpy
+      - pandas
+      - numpy
+      - matplotlib
+      - pillow
+

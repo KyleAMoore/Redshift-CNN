@@ -1,1 +1,8 @@
 requests
+astropy
+click
+numpy
+pandas
+numpy
+matplotlib
+pillow

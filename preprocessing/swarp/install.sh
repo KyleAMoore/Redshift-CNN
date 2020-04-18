@@ -45,6 +45,8 @@ make install;
 echo SWARP INSTALLATION COMPLETE;
 
 rm -rf ${SCRATCH_DIR};
+# Go Back to where we came from
+cd $1
 #
 if [[ -d ${SWARP_DIR}/bin && !( $PATH =~ .*${SWARP_DIR}/bin.*) ]];
     then
@@ -54,6 +56,7 @@ if [[ -d ${SWARP_DIR}/bin && !( $PATH =~ .*${SWARP_DIR}/bin.*) ]];
         echo Installation Complete, swarp has been added to the path
         exit 0;
 fi
+
 
 echo Installation Complete, SWARP path already exists
 exit 0;

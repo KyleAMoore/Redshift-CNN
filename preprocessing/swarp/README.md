@@ -17,7 +17,7 @@ If ths script runs with any issue, then swarp has been install and will now be
 available as a user command.
 
 ## Installing SWARP in sciserver-compute
-The file [`test_install.py`](./test_install.py) tries to install swarp in 
+The file [`test_install.py`](test_install.py) tries to install swarp in 
 [`sciserver-compute`](https://apps.sciserver.org/compute/jobs) environment. 
 This will be helpful to leverage the massive computing platform that is provided by `sciserver`.
  
@@ -36,7 +36,7 @@ python test_install.py
 ```
 
 By default, `test_install.py` will create a `UserVolume` called `AstroResearch` to install swarp.
-The script [install.sh](./install.sh) will be uploaded to `AstroResearch/scripts`. Swarp binary 
+The script [install.sh](install.sh) will be uploaded to `AstroResearch/scripts`. Swarp binary 
 could be found in `AstroResearch/.swarp`. You can clean this up from the sciserver-dashboard. 
 
 After the script has finished installing swarp, you should get a following message:
