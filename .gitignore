@@ -2,7 +2,10 @@
 __pycache__/
 *.py[cod]
 *$py.class
-
+*.ckpt
+*.jpg
+*.jpeg
+*.png
 # C extensions
 *.so
 
@@ -128,6 +131,7 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
+preprocessing/data
 # Data files
 data/
 *.pkl

@@ -1,5 +1,9 @@
 requests
-numpy
-matplotlib
 keras
 properscoring
+astropy
+click
+numpy
+pandas
+matplotlib
+pillow
