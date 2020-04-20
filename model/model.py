@@ -29,6 +29,7 @@ class RedshiftClassifierResNet(Model):
            Due to the image downsampling each stack, num_res_stacks should be
            in the range 1 <= k <= log2(num_res_stacks - 2) 
         """
+        self.num_classes = num_redshift_classes
 
         # Input Layer Galactic Images
         image_input = Input(shape=input_img_shape)
@@ -122,6 +123,7 @@ class RedshiftClassifierInception(Model):
                  input_img_shape,
                  num_redshift_classes):
         """Initialize the model"""
+        self.num_classes = num_redshift_classes
 
         # Input Layer Galactic Images
         image_input = Input(shape=input_img_shape)

@@ -1,11 +1,10 @@
 import numpy as np
 from matplotlib import pyplot as plt
-from model import RedshiftClassifierResNet, RedshiftClassifierInception
 from pickle import dump, load
 from glob import glob, iglob
 from properscoring import crps_gaussian
 
-def test_model(model, test_imgs, test_labels, directory):
+def test_model(model, test_imgs, test_labels, directory, max_val):
     """Tests the model across all of its epochs
     
     Args:
@@ -13,9 +12,11 @@ def test_model(model, test_imgs, test_labels, directory):
         test_imgs (numpy.array): Array of test images
         test_labels (numpy.array): Array of redshift values
         directory (str): Locations of directories containing pre-trained model weights.
-    
+        max_val (float, optional): Maximum expected redshift value. Necessary for categorical
+                conversion. Defaults to 3.5.
+
     Returns:
-        [type]: [description]
+        list(dict): list of dictionaries containing the evaluation metrics of every epoch of the model
     """
     with open(glob(directory+'*.hist')[0],'rb') as pkl:
         hist = load(pkl)
@@ -23,7 +24,7 @@ def test_model(model, test_imgs, test_labels, directory):
     for weight_file in iglob(directory + '*.hdf5'):
         print('Testing model saved in location: ' + weight_file)
         model.load_weights(weight_file)
-        results = redshift_evaluate(model, test_imgs, test_labels)
+        results = redshift_evaluate(model, test_imgs, test_labels, max_val)
         
         for k, v in results.items():
             try:
@@ -38,13 +39,15 @@ def test_model(model, test_imgs, test_labels, directory):
 
     return hist
 
-def redshift_evaluate(model, test_imgs, test_labels):
+def redshift_evaluate(model, test_imgs, test_labels, max_val):
     """Evaluates the model using the metrics defined in https://arxiv.org/abs/1806.06607
     
     Args:
         model (keras.Model): Compiled and trained keras model.
         test_imgs (numpy.array): Array of test images
         test_labels (numpy.array): Array of redshift values
+        max_val (float, optional): Maximum expected redshift value. Necessary for categorical
+                conversion. Defaults to 3.5.
     
     Returns a dictionary with the following key-value pairs:
         'pred_bias' (float): Average bias of the model.
@@ -55,8 +58,8 @@ def redshift_evaluate(model, test_imgs, test_labels):
     """         
     pdfs = model.predict(test_imgs)
     
-    step = model.max_val / model.num_classes
-    bin_starts = np.arange(0,model.max_val,step)
+    step = max_val / model.num_classes
+    bin_starts = np.arange(0,max_val,step)
     preds = np.sum((bin_starts+(step/2)) * pdfs, axis=1) # midpoints
 
     residuals = (preds - test_labels) / (test_labels + 1)
@@ -132,7 +135,7 @@ def plot_hist(histories, labels, output_filename):
 
     plt.savefig(output_filename, bbox_inches='tight')
 
-def eval_models(models, test_data_path, model_directories, model_labels, output_path):
+def eval_models(models, test_data_path, model_directories, model_labels, output_path, max_val):
     """Evaluates and compares the models given on the same data
     
     Args:
@@ -155,7 +158,7 @@ def eval_models(models, test_data_path, model_directories, model_labels, output_
                 histories.append(load(pkl))
 
         except(FileNotFoundError, IOError):
-            hist = test_model(models[i], test_imgs, test_labels, direc)
+            hist = test_model(models[i], test_imgs, test_labels, direc, max_val)
             with open(direc+'results.pkl', 'wb') as pkl:
                 dump(hist, pkl)
             histories.append(hist)
@@ -176,8 +179,11 @@ def main(mode=0):
             combination of values of num_res_blocks and num_res_stacks in the
             ranges [4,8] and [3,5] respectively
     """
+    from model import RedshiftClassifierResNet, RedshiftClassifierInception
+
     image_shape = (64,64,5)
     num_classes = 32
+    max_val = 3.5
 
     if mode == 0:
         models = [
@@ -209,4 +215,4 @@ def main(mode=0):
     else:
         raise ValueError('Mode must be one of the integers 0 or 1 (default=0)')
 
-    eval_models(models, '../data/SDSS/prep/sdss-test.pkl', directories, labels, 'images/model_comp.png')
+    eval_models(models, '../data/SDSS/prep/sdss-test.pkl', directories, labels, 'images/model_comp.png', max_val)
