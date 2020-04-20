@@ -28,8 +28,9 @@ In order to run this repository, you will need the following programs installed:
 ## [train.py](train.py)
 This script contains an API for training CNN models. The primary function of this API is:
 
-`train_model(model, train_imgs, train_labels, arch_label, data_label, batch_size, epochs, num_rs_bins, max_rs_val, val_split, rot_chance, flip_chance):`
-
+```python
+train_model(model, train_imgs, train_labels, arch_label, data_label, batch_size, epochs, num_rs_bins, max_rs_val, val_split, rot_chance, flip_chance)
+```
 * model (required, keras.Model): The model architecture to be trained. Should be an already compiled keras model.
 * train_imgs (required, numpy.array) - Images to train model on
 * train_labels (required, numpy.array) - True desired values of outputs for each input
@@ -65,23 +66,32 @@ This script is a ready-made example script for running the full training and tes
 ## [display-galaxy.py](display-galaxy.py)
 This script provides the ability to display SDSS galaxy images in an approximation of their RGB coloration. It uses an implementation of the method described in [Bertin et. al.](http://www.aspbooks.org/publications/461/263.pdf). The primary functions of interest in the script are.
 
-1. `BertinVisualizer(gamma, alpha, a, it, b, image_channels)`
-    * gamma (default 2.4) - intensity scale when intensity is greater than it (default is for SDSS)
-    * alpha (default 2.0) - saturation level of output images. Images are naturally desaturated, so values between 1 and 2 are recommended.
-    * a (default 12.92) - intensity scale when intensity is less than it (default is for SDSS)
-    * it (default 0.00304) - intensity threshold for switching transformation functions(default is for SDSS) 
-    * b (default 0.055) - intensity scale when intensity is greater than it (default is for SDSS)
-    * image_channels (default 5) - number of color channels in the image. For SDSS, these channels are ugriz (standard computer images are rgb)
+### Create visualizer object
+```python
+BertinVisualizer(gamma, alpha, a, it, b, image_channels)
+```
+* gamma (default 2.4) - intensity scale when intensity is greater than it (default is for SDSS)
+* alpha (default 2.0) - saturation level of output images. Images are naturally desaturated, so values between 1 and 2 are recommended.
+* a (default 12.92) - intensity scale when intensity is less than it (default is for SDSS)
+* it (default 0.00304) - intensity threshold for switching transformation functions(default is for SDSS) 
+* b (default 0.055) - intensity scale when intensity is greater than it (default is for SDSS)
+* image_channels (default 5) - number of color channels in the image. For SDSS, these channels are ugriz (standard computer images are rgb)
 
-2. `plot_images(images, redshifts, output_filename, num_bins, img_per_bin)`
-    * images (required) - images to be converted to rgb
-    * redshifts (required) - redshift values of bodies in images. Needed for binning and displaying by redshift
-    * output_filename (required) - location to save the image plot
-    * num_bins (default 7) - number of redshift bins (columns) to be displayed
-    * img_per_bin (default 1) - number of images (rows) per bin
+### Convert and plot multiple images
+```python
+plot_images(images, redshifts, output_filename, num_bins, img_per_bin)
+```
+* images (required) - images to be converted to rgb
+* redshifts (required) - redshift values of bodies in images. Needed for binning and displaying by redshift
+* output_filename (required) - location to save the image plot
+* num_bins (default 7) - number of redshift bins (columns) to be displayed
+* img_per_bin (default 1) - number of images (rows) per bin
 
-3. `process_img(image)`
-    * image (required) - ugriz image to be converted to RGB
+### Convert a single image to RGB
+```python
+process_img(image)
+```
+* image (required) - ugriz image to be converted to RGB
 
 Sample execution:
 ```python
