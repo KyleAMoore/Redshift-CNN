@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from random import sample
 
-class BetlinVisualizer:
+class BertinVisualizer:
     """Given an image in 5 SDSS bands,
        create an intensity plot using these images.
        This method follows recommendations from to plot these
@@ -204,7 +204,7 @@ if __name__ == "__main__":
     with open('data/combined_dataset.pkl', 'rb') as pklfile:
         images, redshifts = load(pklfile).values()
 
-    rsvis = BetlinVisualizer(alpha=1.2)
+    rsvis = BertinVisualizer(alpha=1.2)
     rsvis.plot_images(images, redshifts, 
                       'binned-galaxies-mult.png',
                       num_bins=10, img_per_bin=1)

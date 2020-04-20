@@ -1,9 +1,9 @@
 import numpy as np
-from model.model import RedshiftClassifierResNet, RedshiftClassifierInception
 from keras.callbacks import ModelCheckpoint, EarlyStopping
 from keras.utils import Sequence
 from random import randint, random, shuffle
 from pickle import load, dump
+import os
 
 class ImageSequence(Sequence):
     def __init__(self, x_set, y_set, batch_size=32, rotate_chance=0.2, flip_chance=0.2):
@@ -112,7 +112,7 @@ class Train():
                                    callbacks=callbacks)
     
     def to_categorical(self, labels):
-        return labels // (self.max_val / self.num_classes)
+        return labels // (self.max_val / self.num_bins)
 
 def train_model(model,
                 train_imgs,
@@ -152,6 +152,8 @@ def train_model(model,
     trainer = Train(batch_size, epochs, val_split, num_rs_bins, max_rs_val)
 
     directory = 'model/saved/'+arch_label
+    if not os.path.exists(directory):
+        os.makedirs(directory)
 
     print("Beginning training of model: " + arch_label)
     print("Model history and weights will be saved in location: " + directory)
@@ -179,6 +181,8 @@ def main(mode=0):
             combined have every combination of values of num_res_blocks and num_res_stacks in the
             ranges [4,8] and [3,5] respectively
     """
+    from model.model import RedshiftClassifierResNet, RedshiftClassifierInception
+
     with open('data/SDSS/prep/sdss-train.pkl','rb') as pkl:
         train_imgs = load(pkl)
         train_labels = load(pkl)
