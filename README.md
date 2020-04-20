@@ -6,6 +6,7 @@ Redshift-ResNet
 │   ├── <a href="model/eval_model.py">eval_model.py</a>
 │   └── <a href="model/model_utils.py">model_utils.py</a>
 ├── <a href="preprocessing/README.md">preprocessing</a>
+│   └── <a href="preprocessing/swarp/README.md">swarp</a>
 ├── <a href="train.py">train.py</a>
 ├── <a href="train-test.py">train-test.py</a>
 └── <a href="display-galaxy.py">display-galaxy.py</a>
