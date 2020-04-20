@@ -11,9 +11,9 @@ environment variable.
 
 ```bash
 chmod +x install.sh
-./install.sh
+./install.sh $HOME $HOME/.bashrc
 ```
-If ths script runs with any issue, then swarp has been install and will now be 
+If ths script runs without any issue, then swarp has been install and will now be 
 available as a user command.
 
 ## Installing SWARP in sciserver-compute
@@ -50,7 +50,7 @@ Waiting...
 Waiting...
 Waiting...
 Done!
-{'status': 32, 'statusMeaning': 'SUCCESS', 'jobId': 59056}
+{'status': 32, 'statusMeaning': 'SUCCESS', 'jobId': ****}
 ```
 If the `statusMeaning` is `SUCCESS`, then, swarp has been setup and now can be used in any of your further compute pipelines. 
 

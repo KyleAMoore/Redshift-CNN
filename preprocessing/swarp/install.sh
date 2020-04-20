@@ -6,7 +6,7 @@ SOURCEFILE=${INSTALL_DIR}/.bashrc   # Where to add swarp to path
 if [[ $# > 0 ]];
     then
         INSTALL_DIR=$1
-        SOURCFILE=$2
+        SOURCEFILE=$2
 fi
 # REMOVE DIRECTORY IF EXISTS
 
@@ -48,7 +48,7 @@ rm -rf ${SCRATCH_DIR};
 # Go Back to where we came from
 cd $1
 #
-if [[ -d ${SWARP_DIR}/bin && !( $PATH =~ .*${SWARP_DIR}/bin.*) ]];
+if [[ -d ${SWARP_DIR}/bin && ! ( $PATH =~ .*${SWARP_DIR}/bin.*) ]];
     then
         echo  "Adding SWARP Binary To PATH"
         echo  "export PATH=\$PATH:${SWARP_DIR}/bin" >> ${SOURCEFILE}

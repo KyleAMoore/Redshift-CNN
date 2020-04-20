@@ -34,6 +34,33 @@ from checkpoint_objects import CheckPoint, RedShiftCheckPointObject
 
 
 class PreProcess:
+    """A generic preprocess class to convert sdss images fits to a datacube with redshift values
+
+    Note: This class assumes that a swarp installation is available in your system.
+
+    Parameters
+    ----------
+    images_meta : str or pd.DataFrame
+        the meta data frame/csv file
+    uname : str
+        username for sciserver
+    seed : str, default=32
+        the random seed for numpy
+    num_samples : int, default=100
+        number of galaxies to perform pre-processing on
+    output_image_size : int, default=64
+        the size of the output image, assuming a square frame
+    config_file : str, default=.swarp.conf
+        config file for swarp tool
+    checkpoint_steps : int, default=10
+        checkpoint after completing pre-processing for this amount of galaxies
+    num_processes : int, default=10
+        the number of processes to use for this Propercess operation
+    checkpoint_dir : str, os.path like
+        the location of the checkpoints
+    overwrite_checkpoints: bool, default=True
+        If True, overwrite the existing checkpoints
+    """
     def __init__(self,
                  images_meta,
                  seed=32,
@@ -45,19 +72,6 @@ class PreProcess:
                  num_processes=10,
                  checkpoint_dir=os.getcwd(),
                  overwrite_checkpoints=True):
-        """ A generic pre-process class to convert sdss images fits to a datacube with redshift values
-        Note: This class assumes that a swarp installation is available in your system.
-        :param config_file: config file for swarp
-        :param images_meta: the meta data frame/csv file
-        :param seed: the random seed for numpy
-        :param uname: username for sciserver
-        :param num_samples: number of galaxies to perform pre-processing on
-        :param output_image_size: the size of the output image
-        :param checkpoint_steps: checkpoint after completing pre-processing for this amount of galaxies
-        :param num_processes: the number of processes to use in the swarp wrapper pool
-        :param checkpoint_dir: the location of the checkpoints
-        :param overwrite_checkpoints: If True, overwrite the exsisting checkpoints
-        """
         np.random.seed(seed)
         self.logger = LoggerFactory.get_logger(self.__class__.__name__,
                                                'DEBUG',
@@ -93,6 +107,11 @@ class PreProcess:
         return self.images_meta.sample(frac=num_samples / self.images_meta.shape[0])
 
     def run(self):
+        """Run the preprocessing pipeline
+
+        This method runs the preprocessing pipeline for given samples
+        by spinning up processes provided while initializing the class
+        """
         rundir = Path(self.checkpoint_dir)
         if not rundir.resolve().exists():
             os.makedirs(rundir)
@@ -111,9 +130,11 @@ class PreProcess:
         process_pool.join()
 
     def _on_ckpt_fail(self, exception):
+        """Callback method for failed checkpoints"""
         self.logger.error('Error. {}'.format(exception))
 
     def _save_ckpt(self, obj_guid):
+        """Calls back method for saving checkpoints on success"""
         if obj_guid == 'SKIP_SENTINEL':
             return
         self.logger.info('Completed preprocessing for galaxies (GUID): {}'.format(obj_guid['guid']))
@@ -122,11 +143,13 @@ class PreProcess:
         self.logger.info('Checkpoint saved as {}'.format(ckpt.get_loc()))
 
     def _run_preprocess_for_one_ckpt(self, ckpt_info):
+        """Run the preprocess pipeline for one checkpoint step"""
         galaxies = self.galaxies[ckpt_info['start_idx']: ckpt_info['end_idx']]
         guid = ckpt_info['guid']
         return self._run_preprocess(galaxies, guid)
 
     def _form_checkpoint_blocks(self):
+        """This method forms checkpoint blocks for given galaxy metadata and checkpoint steps"""
         rows = self.galaxies.shape[0]
         num_checkpoints = math.ceil(rows / self.checkpoint_steps)
         if num_checkpoints == 0:
@@ -149,6 +172,7 @@ class PreProcess:
         return checkpoint_blocks
 
     def _run_preprocess(self, galaxies, guid):
+        """Run preprocessing pipeline for given galaxies."""
         dl_count = 0
         galaxy_count = 0
         run_dir = os.getcwd()
@@ -258,7 +282,23 @@ class PreProcess:
         return data_mat
 
     def _get_formatted_urls(self, rerun, run, camcol, field):
-        """Get formatted urls for this galaxy"""
+        """Get formatted urls for this galaxy
+
+        This method takes in the `rerun` number, `run` number, `camcol` and `filed`
+        for a sdss galaxy and returns a set of URLs for Science Archive Server (SAS)
+        fits files for each SDSS band `u`, `g`, `r`, `i` and `z` for the galaxy.
+
+        Parameters
+        ----------
+        rerun : int
+            The rerun number from SDSS survey
+        run : int
+            The run number from SDSS survey
+        camcol : int
+            The camera column number from SDSS survey
+        field : int
+            The field number from SDSS survey
+        """
         possible_bands = ['u', 'g', 'r', 'i', 'z']
         run_arr = list(str(run).strip())
         if len(run_arr) < 6:
@@ -297,6 +337,24 @@ class PreProcess:
                              center,
                              image_out,
                              weight_out):
+        """Run the swarp tool as a subprocess
+
+        Parameters
+        ----------
+        fits_file : str
+            The fits file name for applying swarp tool on
+        config_file : str
+            The swarp config file to use
+        center : 2-tuple or list
+            The center of the fits around with swarp resampling is performed
+        image_out : str
+            The temporary filename for saving `IMAGEOUT_NAME` for swarp
+        weight_out : str
+            The temporary filename for saving `WEIGHTOUT_NAME` for swarp
+        Notes
+        -----
+            This method assumes that swarp is available in the PATH
+        """
         try:
             subprocess.run(
                 args='swarp '
@@ -316,6 +374,13 @@ class PreProcess:
 
     @staticmethod
     def get_process_pool(num):
+        """Return a multiprocessing pool
+
+        Parameters
+        ----------
+        num: int
+            Number of processes to return
+        """
         return Pool(processes=num)
 
 

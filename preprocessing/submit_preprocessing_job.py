@@ -98,10 +98,6 @@ class SciServerJobRunner:
 if __name__ == '__main__':
     SciServerJobRunner.login_sciserver(os.environ['SCISERVER_USERNAME'], os.environ['SCISERVER_PASSWORD'])
     SciServerJobRunner.set_job_config('Large Jobs Domain', 'SciServer Essentials')
-    # SciServerJobRunner.download_casjobs_query(query='SELECT * FROM SDSS_DR12',
-    #                                           table_name='SDSS_DR12',
-    #                                           save_to='data',
-    #                                           context='MyDB')
     code_tar_location = SciServerJobRunner.upload_repo('FileServiceJHU',
                                                        volume_name='AstroResearch')
     SciServerJobRunner.run_preprocessing_pipeline(code_tar_location=code_tar_location,
