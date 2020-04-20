@@ -131,9 +131,10 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-preprocessing/data
+preprocessing/data/*
+!preprocessing/data/.gitkeep
 # Data files
-data/
+data/*
 *.pkl
 model/saved/
 
