@@ -3,11 +3,11 @@ from model.eval_model import eval_models
 from train import train_model
 from pickle import load
 
-train_data_dir = 'data/SDSS/prep/sdss-train.pkl' # <TRAIN_DATA_LOC>
-test_data_dir = 'data/SDSS/prep/sdss-test.pkl'# <TEST_DATA_LOC>
-results_file = 'model/images/model_comp_SDSS.png'# <SAVE_LOC>
+train_data_file = <TRAIN_DATA_LOC>
+test_data_file = <TEST_DATA_LOC>
+results_file = <SAVE_LOC>
 
-with open(train_data_dir,'rb') as pkl:
+with open(train_data_file,'rb') as pkl:
     train_imgs = load(pkl)
     train_labels = load(pkl)
 
@@ -40,7 +40,7 @@ for i, mod in enumerate(models):
 model_dirs = ['model/saved/'+lab+'/' for lab in model_labels]
 
 eval_models(models,
-            test_data_dir,
+            test_data_file,
             model_dirs,
             model_labels,
             results_file,
