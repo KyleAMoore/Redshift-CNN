@@ -1,3 +1,16 @@
+# Project Map
+<pre>
+Redshift-ResNet
+├── <a href="model/README.md">model</a>
+│   ├── <a href="model/model.py">model.py</a>
+│   ├── <a href="model/eval_model.py">eval_model.py</a>
+│   └── <a href="model/model_utils.py">model_utils.py</a>
+├── <a href="preprocessing/README.md">preprocessing</a>
+├── <a href="train.py">train.py</a>
+├── <a href="train-test.py">train-test.py</a>
+└── <a href="display-galaxy.py">display-galaxy.py</a>
+</pre>
+
 # Redshift
 This project seeks to automatically estimate the redshift value of astronomical bodies using pictures collected through astronomical sky surveys. This project in particular uses images from the Sloan Digital Sky Survey (SDSS).
 
@@ -14,33 +27,39 @@ In order to run this repository, you will need the following programs installed:
 ## [train.py](train.py)
 This script contains an API for training CNN models. The primary function of this API is:
 
-1. `train_model(model, train_imgs, train_labels, arch_label, data_label, batch_size, epochs, num_rs_bins, max_rs_val, val_split, rot_chance, flip_chance):`
-    * model (required, keras.Model): The model architecture to be trained. Should be an already compiled keras model.
-    * train_imgs (required, numpy.array) - Images to train model on
-    * train_labels (required, numpy.array) - True desired values of outputs for each input
-    * arch_label (required, string) - Redshift values of training images
-    * data_label (required, string) - Name of architecture being tested. A folder with this name needs to exist in the location %Run_dir%/saved/
-    * batch_size (default: 32) - Number of images per training batch
-    * epochs (default: 10) - Number of times to train the model on the entire dataset
-    * num_rs_bins (default: 32) - Number of bins to use in model output
-    * max_rs_val (default: 3.5) - Maximum expected redshift value. Necessary for categorical conversion
-    * val_split (default: 0.15) - Percentage of samples to hold out for validation
-    * rot_chance (default: 0.4): Probability for each image to be individually flipped after each epoch (randomly chooses axis to flip across)
+`train_model(model, train_imgs, train_labels, arch_label, data_label, batch_size, epochs, num_rs_bins, max_rs_val, val_split, rot_chance, flip_chance):`
+
+* model (required, keras.Model): The model architecture to be trained. Should be an already compiled keras model.
+* train_imgs (required, numpy.array) - Images to train model on
+* train_labels (required, numpy.array) - True desired values of outputs for each input
+* arch_label (required, string) - Redshift values of training images
+* data_label (required, string) - Name of architecture being tested. A folder with this name needs to exist in the location %Run_dir%/saved/
+* batch_size (default: 32) - Number of images per training batch
+* epochs (default: 10) - Number of times to train the model on the entire dataset
+* num_rs_bins (default: 32) - Number of bins to use in model output
+* max_rs_val (default: 3.5) - Maximum expected redshift value. Necessary for categorical conversion
+* val_split (default: 0.15) - Percentage of samples to hold out for validation
+* rot_chance (default: 0.4): Probability for each image to be individually flipped after each epoch (randomly chooses axis to flip across)
     * flip_chance (default: 0.2): Probability for each image to be individually rotated after each epoch (randomly chooses degree of rotation)
 
 Sample execution:
-```
-    from pickle import load
+```python
+from pickle import load
+from model.model import RedshiftClassifierResNet
 
-    with open('dataset.pkl','rb') as pkl:
-        train_imgs = load(pkl)
-        train_labels = load(pkl)
+with open('dataset.pkl','rb') as pkl:
+    train_imgs = load(pkl)
+    train_labels = load(pkl)
 
-    image_shape = (64,64,5)
-    num_classes = 32
-    model = RedshiftClassifierInception(image_shape, num_classes)
-    train_model(model, train_imgs, train_labels, 'incep', 'SDSS')
+image_shape = (64,64,5)
+num_classes = 32
+
+model = RedshiftClassifierResNet(image_shape, num_classes)
+ train_model(model, train_imgs, train_labels, 'incep', 'SDSS')
 ```
+
+## [train-test.py](train-test.py)
+This script is a ready-made example script for running the full training and testing pipeline using all default configurations. Three file locations need to be supplied in the indicated locations before the script can be executed. The first two are the locations of the pickle files that contain the training and testing data. Each of those files should contain two numpy arrays, with the first containing all of the input images, and the second containing the ground-truth output. The final location is where the results graph will be saved after testing has completed.
 
 ## [display-galaxy.py](display-galaxy.py)
 This script provides the ability to display SDSS galaxy images in an approximation of their RGB coloration. It uses an implementation of the method described in [Bertin et. al.](http://www.aspbooks.org/publications/461/263.pdf). The primary functions of interest in the script are.
@@ -64,7 +83,7 @@ This script provides the ability to display SDSS galaxy images in an approximati
     * image (required) - ugriz image to be converted to RGB
 
 Sample execution:
-```
+```python
 from pickle import load
 import matplotlib.pyplot as plt
 
