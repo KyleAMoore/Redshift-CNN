@@ -1,0 +1,42 @@
+name: Submit Job to Sciserver Compute
+
+on:
+  schedule:
+    - cron: 0 */12 * * *
+
+jobs:
+  submit:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+
+      - name: Download csv for galaxy metadata
+        id: download_csv
+        run: |
+          wget https://www.dropbox.com/s/w68xoucr6jtp8bi/SDSS_DR12.csv?dl=0 -O preprocessing/data/SDSS_DR12.csv
+
+      - name: Setup Python
+        id: setup_python
+        uses: actions/setup-python@v1
+        with:
+          python-version: '3.7'
+
+      - name: Install Requirements
+        id: install_requirements
+        run: |
+          pip3 install -r requirements.txt
+          git clone https://github.com/sciserver/SciScript-Python.git \
+              && cd SciScript-Python \
+              && git checkout sciserver-v2.0.13 \
+              && cd py3 \
+              && python3 setup.py install
+
+      - name: Submit Job to SciServer-Compute
+        id: submit_job
+        env:
+          SCISERVER_USERNAME: ${{ secrets.SCISERVER_USERNAME }}
+          SCISERVER_PASSWORD: ${{ secrets.SCISERVER_PASSWORD }}
+        run: |
+          cd preprocessing && python3 submit_preprocessing_job.py -J "Large Jobs Domain"
