@@ -12,5 +12,5 @@ cd ..
 cd ..
 export LC_ALL=en_US.utf-8
 export LANG=en_US.utf-8
-python3 sdss/preprocess.py data/SDSS_DR12.csv -u utimalsina -C 100 -N 50000 -O 64 --checkpoint-dir ckpts --num-processes=32
+python3 sdss/preprocess.py data/SDSS_DR12.csv -u utimalsina -C 500 -N 100000 -O 64 --checkpoint-dir ckpts --num-processes=32 --volume-name=AstroResearch
 cd ..

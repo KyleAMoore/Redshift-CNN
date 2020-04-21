@@ -1,7 +1,7 @@
 """
 This script runs the preprocessing pipeline in sciserver-compute
 1. Upload the code repo to sciserver-files.
-2. Install Swarp
+2. Install Requirements
 3. Mount Data Volumes
 4. Randomize the csv based on dataSize
 5. Operate on the data and apply swarp to the dataset
@@ -97,7 +97,7 @@ class SciServerJobRunner:
 
 if __name__ == '__main__':
     SciServerJobRunner.login_sciserver(os.environ['SCISERVER_USERNAME'], os.environ['SCISERVER_PASSWORD'])
-    SciServerJobRunner.set_job_config('Large Jobs Domain', 'SciServer Essentials')
+    SciServerJobRunner.set_job_config('Small Jobs Domain', 'SciServer Essentials')
     code_tar_location = SciServerJobRunner.upload_repo('FileServiceJHU',
                                                        volume_name='AstroResearch')
     SciServerJobRunner.run_preprocessing_pipeline(code_tar_location=code_tar_location,

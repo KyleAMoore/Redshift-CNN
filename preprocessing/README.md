@@ -62,6 +62,10 @@ options:
                                       The output image size
       -o, --overwrite-checkpoints     If set, overwrite the existing checkpoints
       --checkpoint-dir TEXT           The checkpoint directory
+      --volume-name TEXT              The sciserver-volume in which checkpoint
+                                      directory should reside(should be in Storage
+                                      pool)
+    
       --num-processes INTEGER         The number of processes to use (uses
                                       multiprocessing.Pool)
     

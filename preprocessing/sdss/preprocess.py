@@ -13,7 +13,7 @@ import subprocess
 
 from collections import deque
 
-from multiprocessing import Pool
+from multiprocessing import Pool, Manager
 
 from SciServer.Config import isSciServerComputeEnvironment
 
@@ -28,7 +28,7 @@ import pandas as pd
 import click
 
 from logger_factory import LoggerFactory
-from constants import SAS_URL, SWARP_COMMAND
+from constants import SAS_URL, SWARP_COMMAND, CKPT_GUID
 from sdss_utils import get_guid
 from checkpoint_objects import CheckPoint, RedShiftCheckPointObject
 
@@ -56,9 +56,12 @@ class PreProcess:
         checkpoint after completing pre-processing for this amount of galaxies
     num_processes : int, default=10
         the number of processes to use for this Propercess operation
-    checkpoint_dir : str, os.path like
+    checkpoint_dir : str, os.path like, default=os.getcwd()
         the location of the checkpoints
-    overwrite_checkpoints: bool, default=True
+    volume_name: str, default=AstroResearch
+        If running in `sciserver-compute` name of the volume in
+        storage volume pool to create checkpoints in
+    overwrite_checkpoints: bool, default=False
         If True, overwrite the existing checkpoints
     """
     def __init__(self,
@@ -71,7 +74,8 @@ class PreProcess:
                  checkpoint_steps=10,
                  num_processes=10,
                  checkpoint_dir=os.getcwd(),
-                 overwrite_checkpoints=True):
+                 volume_name='AstroResearch',
+                 overwrite_checkpoints=False):
         np.random.seed(seed)
         self.logger = LoggerFactory.get_logger(self.__class__.__name__,
                                                'DEBUG',
@@ -89,22 +93,56 @@ class PreProcess:
         self.checkpoint_dir = checkpoint_dir
         self.overwrite_checkpoints = overwrite_checkpoints
         self.num_processes = num_processes
+        self.volume_name = volume_name
 
         if isSciServerComputeEnvironment():
             if uname is None:
                 raise Exception('Please provide a username for science server.')
             self.fits_download_loc = '/home/idies/workspace/Temporary/{}/scratch'.format(self.uname)
-            self.checkpoint_dir = '/home/idies/workspace/Temporary/{}/scratch/{}'.format(self.uname, checkpoint_dir)
+            self.checkpoint_dir = '/home/idies/workspace/Storage/{}/{}/{}'.format(self.uname,
+                                                                                  self.volume_name,
+                                                                                  checkpoint_dir)
 
         else:
             self.fits_download_loc = mkdtemp()
 
-        self.checkpoint_blocks = self._form_checkpoint_blocks()
+        self.process_blocks = self._form_process_blocks()
+        self.counter = 0
 
     def _randomize_meta(self, num_samples):
         """Randomly select num_samples entry from the metadata"""
         self.logger.debug('Sampling the data frame to {} galaxies'.format(num_samples))
         return self.images_meta.sample(frac=num_samples / self.images_meta.shape[0])
+
+    def _form_process_blocks(self):
+        """This method divides galaxy metadata into blocks for each process
+
+        Notes
+        -----
+            This is primarily done to offshoot heavy switching of contexts in a process pool
+            so that each process can operate on distinct number of galaxies rather
+            than a single galaxy
+        """
+        rows = self.galaxies.shape[0]
+        num_blocks = math.ceil(rows / self.checkpoint_steps)
+        if num_blocks == 0:
+            num_blocks = 1
+        self.logger.debug('{} Galaxies with {} checkpoint steps form will form {} blocks'
+                          .format(rows, self.checkpoint_steps, num_blocks))
+        process_blocks = deque()
+        for i in range(num_blocks):
+            start_idx = i * self.checkpoint_steps
+            end_idx = (i + 1) * self.checkpoint_steps
+            if end_idx >= self.galaxies.shape[0]:
+                end_idx = self.galaxies.shape[0]
+            checkpoint_block = {
+                'start_idx': start_idx,
+                'end_idx': end_idx,
+                'guid': get_guid(self.galaxies[start_idx: end_idx], col_name='specObjID')
+            }
+            process_blocks.append(checkpoint_block)
+        self.logger.debug('Successfully initialized process blocks')
+        return process_blocks
 
     def run(self):
         """Run the preprocessing pipeline
@@ -115,74 +153,67 @@ class PreProcess:
         rundir = Path(self.checkpoint_dir)
         if not rundir.resolve().exists():
             os.makedirs(rundir)
-        if not self.overwrite_checkpoints:
+        if self.overwrite_checkpoints:
             shutil.rmtree(rundir / 'galaxies', ignore_errors=True)
         os.makedirs(rundir / 'galaxies', exist_ok=True)
         self.logger.debug('Created a directory called {} to save lupton-rgb images'
                           .format(rundir / 'galaxies'))
-        process_pool = PreProcess.get_process_pool(self.num_processes)
+        guid = CKPT_GUID
+        if self.overwrite_checkpoints:
+            CheckPoint.remove_ckpt(self.checkpoint_dir, guid)
+        if not CheckPoint.checkpoint_exists(self.checkpoint_dir, guid):
+            checkpoint = CheckPoint(self.checkpoint_dir, RedShiftCheckPointObject, guid)
+            checkpoint.save_checkpoint()
 
-        [process_pool.apply_async(self._run_preprocess_for_one_ckpt,
-                                  kwds={'ckpt_info': x},
-                                  callback=self._save_ckpt,
-                                  error_callback=self._on_ckpt_fail) for x in self.checkpoint_blocks]
+        process_pool = PreProcess.get_process_pool(self.num_processes)
+        manager = Manager()
+        counter = manager.Value('i', 0)
+        checkpoint_objects = manager.Queue()
+        [process_pool.apply_async(self._run_preprocess_for_one_block,
+                                  kwds={'ckpt_info': x,
+                                        'counter': counter,
+                                        'ckpt_objs': checkpoint_objects},
+                                  callback=self._on_process_complete,
+                                  error_callback=self._on_process_fail) for x in self.process_blocks]
         process_pool.close()
         process_pool.join()
 
-    def _on_ckpt_fail(self, exception):
-        """Callback method for failed checkpoints"""
-        self.logger.error('Error. {}'.format(exception))
+    def _on_process_complete(self, queue_remaining):
+        """Callback method for successful processes"""
+        if not queue_remaining.empty():
+            self.logger.debug('Saving remaining objects to the checkpoint')
+            self.save_checkpoint(queue_remaining, CKPT_GUID)
+        self.logger.info(f'Process (id: {os.getpid()}) completed.')
 
-    def _save_ckpt(self, obj_guid):
-        """Calls back method for saving checkpoints on success"""
-        if obj_guid == 'SKIP_SENTINEL':
-            return
-        self.logger.info('Completed preprocessing for galaxies (GUID): {}'.format(obj_guid['guid']))
-        ckpt = CheckPoint(self.checkpoint_dir, obj_guid['obj'], obj_guid['guid'])
-        ckpt.save_checkpoint(overwrite=True)
-        self.logger.info('Checkpoint saved as {}'.format(ckpt.get_loc()))
+    def _on_process_fail(self, exception):
+        """Callback method for failed processes"""
+        self.logger.error(f'Error on process with pid {os.getpid()}, {exception}')
 
-    def _run_preprocess_for_one_ckpt(self, ckpt_info):
+    def _run_preprocess_for_one_block(self, ckpt_info, counter, ckpt_objs):
         """Run the preprocess pipeline for one checkpoint step"""
         galaxies = self.galaxies[ckpt_info['start_idx']: ckpt_info['end_idx']]
-        guid = ckpt_info['guid']
-        return self._run_preprocess(galaxies, guid)
+        guid = CKPT_GUID
+        return self._run_preprocess(galaxies, guid, counter=counter, ckpt_objs=ckpt_objs)
 
-    def _form_checkpoint_blocks(self):
-        """This method forms checkpoint blocks for given galaxy metadata and checkpoint steps"""
-        rows = self.galaxies.shape[0]
-        num_checkpoints = math.ceil(rows / self.checkpoint_steps)
-        if num_checkpoints == 0:
-            num_checkpoints = 1
-        self.logger.debug('{} Galaxies with {} checkpoint steps form will form {} checkpoints'
-                          .format(rows, self.checkpoint_steps, num_checkpoints))
-        checkpoint_blocks = deque()
-        for i in range(num_checkpoints):
-            start_idx = i * self.checkpoint_steps
-            end_idx = (i + 1) * self.checkpoint_steps
-            if end_idx >= self.galaxies.shape[0]:
-                end_idx = self.galaxies.shape[0]
-            checkpoint_block = {
-                'start_idx': start_idx,
-                'end_idx': end_idx,
-                'guid': get_guid(self.galaxies[start_idx: end_idx], col_name='specObjID')
-            }
-            checkpoint_blocks.append(checkpoint_block)
-        self.logger.debug('Successfully initialized checkpoint blocks')
-        return checkpoint_blocks
-
-    def _run_preprocess(self, galaxies, guid):
+    def _run_preprocess(self, galaxies, guid, counter, ckpt_objs):
         """Run preprocessing pipeline for given galaxies."""
         dl_count = 0
         galaxy_count = 0
         run_dir = os.getcwd()
-        if CheckPoint.checkpoint_exists(self.checkpoint_dir, guid) and not self.overwrite_checkpoints:
-            self.logger.debug('Checkpoint with GUID {} already exists. Skipping'.format(guid))
-            return 'SKIP_SENTINEL'
-        else:
-            CheckPoint.remove_ckpt(self.checkpoint_dir, guid)
-        redshift_objects = []
+        redshift_objects = ckpt_objs
+        objects_on_disk = CheckPoint.get_object_set(self.checkpoint_dir, guid)
+        last_modified = CheckPoint.last_modified(self.checkpoint_dir, guid)
+        self.logger.debug(f'Objects on disk: {len(objects_on_disk)}, last Modified: {last_modified}')
         for i, galaxy in galaxies.iterrows():
+            if CheckPoint.last_modified(self.checkpoint_dir, guid) > last_modified:
+                self.logger.debug('Loading new checkpoint, as the last checkpoint was updated.')
+                objects_on_disk = CheckPoint.get_object_set(self.checkpoint_dir, guid)
+                last_modified = CheckPoint.last_modified(self.checkpoint_dir, guid)
+                self.logger.debug(f'New objects on disk: {len(objects_on_disk)}, last Modified: {last_modified}')
+
+            if galaxy['specObjID'] in objects_on_disk:
+                self.logger.debug(f'Preprocessed image for galaxy with id {galaxy["specObjID"]} already saved, skipping')
+                continue
             download_urls = self._get_formatted_urls(galaxy['rerun'],
                                                      galaxy['run'],
                                                      galaxy['camcol'],
@@ -225,7 +256,7 @@ class PreProcess:
                     assert op.returncode == 0, f'Error decompressing the fits file {file}'
                     os.remove(file)
                 else:
-                    assert Path(file.replace('.bz2', '')).exists(), f"Uncompressed file doesn't exist"
+                    assert Path(file.replace('.bz2', '')).exists(), "Uncompressed file doesn't exist"
                 fits_files.append(file.replace('.bz2', ''))
 
             # Check if the files exist
@@ -247,14 +278,30 @@ class PreProcess:
 
             self.logger.debug('Completed pre-processing for this galaxy with redshift value {} at index {}'
                               .format(galaxy['z'], galaxy_count))
-            redshift_objects.append(RedShiftCheckPointObject(np_array=data_mat,
-                                                             redshift=galaxy['z'],
-                                                             galaxy_meta=galaxy,
-                                                             image=image_filename,
-                                                             timestamp=datetime.now()))
+            redshift_objects.put(dict(key=galaxy['specObjID'],
+                                      np_array=data_mat,
+                                      redshift=galaxy['z'],
+                                      galaxy_meta=galaxy,
+                                      image=image_filename,
+                                      timestamp=datetime.now()))
+
             galaxy_count += 1
+            counter.value += 1
+            self.logger.info(f'Galaxy count: {counter.value}, steps till next checkpoint: '
+                             f'{self.checkpoint_steps - (counter.value % self.checkpoint_steps)}')
             dl_count = 0
-        return {'obj': redshift_objects, 'guid': guid}
+            if counter.value % self.checkpoint_steps == 0:
+                self.save_checkpoint(objs=redshift_objects, guid=guid)
+        return redshift_objects
+
+    def save_checkpoint(self, objs, guid):
+        """Update checkpoint to a new step by adding extra checkpoint objects"""
+        ckpt = CheckPoint.from_checkpoint(self.checkpoint_dir, guid)
+        obj_list = []
+        while not objs.empty():
+            obj_list.append(objs.get())
+        ckpt.save_checkpoint(obj_list)
+        self.logger.debug(f'Saved objects with keys: {[obj["key"] for obj in obj_list]}')
 
     def _apply_swarp(self, galaxy, fits_files, cleanup=True):
         """Apply the swarp tool for this galaxy and return a preprocessed matrix"""
@@ -321,7 +368,7 @@ class PreProcess:
         return urls
 
     def _hmsdms_string(self, ra, dec):
-        """Retrun hmsdms string from ra, dec"""
+        """Return hmsdms string from ra, dec"""
         center_coord = SkyCoord(ra=ra * u.degree, dec=dec * u.degree)
         coords = center_coord.to_string('hmsdms').split(' ')
         for i in range(len(coords)):
@@ -417,6 +464,10 @@ class PreProcess:
               default=os.getcwd(),
               type=str,
               help='The checkpoint directory')
+@click.option('--volume-name',
+              default='',
+              type=str,
+              help='The sciserver-volume in which checkpoint directory should reside(should be in Storage pool)')
 @click.option('--num-processes',
               default=10,
               type=int,

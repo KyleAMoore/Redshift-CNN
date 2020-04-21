@@ -27,3 +27,5 @@ SAS_URL = 'https://dr12.sdss.org/sas/dr12/boss/photoObj/frames/' \
           '{rerun}/{run}/{camcol}/frame-{band}-{run_str}-{camcol}-{field}.fits.bz2'
 
 SWARP_COMMAND = 'swarp {0}[0] -c {1} -CENTER {2},{3} -IMAGEOUT_NAME {4} -WEIGHTOUT_NAME {5}'
+
+CKPT_GUID = '537633291'
