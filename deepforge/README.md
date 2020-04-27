@@ -4,7 +4,7 @@ DeepForge is a graphical framework for the designing of deep neural networks in 
 
 # Redshift-DeepForge
 
-Included in this directory is a DeepForge project that implements the training and testing pipeline in [this repository](../). It can be loaded by importing [redshift.webgmex](redshift.webgmex) into your DeepForge system as a new project. The project includes three pipelines:
+Included in this directory is a DeepForge project that implements the training and testing pipeline at the root of this repository. It can be loaded by importing [redshift.webgmex](redshift.webgmex) into your DeepForge system as a new project. The project includes three pipelines:
 
 1. Test-Pretrained - For evaluating a pretrained keras model that was saved using the [keras.Model.save](https://keras.io/getting-started/faq/#how-can-i-save-a-keras-model) function or created and saved by another DeepForge pipeline.
 2. Train-Test-Single - Trains and evaluates a single CNN model.
