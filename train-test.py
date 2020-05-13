@@ -14,7 +14,7 @@ with open(train_data_file,'rb') as pkl:
 image_shape = (64,64,5)
 num_classes = 32
 epochs = 20
-max_val=3.5
+max_val=0.4
 
 models = [
     RedshiftClassifierResNet(image_shape, num_classes),

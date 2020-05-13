@@ -40,7 +40,7 @@ train_model(model, train_imgs, train_labels, arch_label, data_label, batch_size,
 * batch_size (default: 32) - Number of images per training batch
 * epochs (default: 10) - Number of times to train the model on the entire dataset
 * num_rs_bins (default: 32) - Number of bins to use in model output
-* max_rs_val (default: 3.5) - Maximum expected redshift value. Necessary for categorical conversion
+* max_rs_val (default: 0.4) - Maximum expected redshift value. Necessary for categorical conversion
 * val_split (default: 0.15) - Percentage of samples to hold out for validation
 * rot_chance (default: 0.4): Probability for each image to be individually flipped after each epoch (randomly chooses axis to flip across)
     * flip_chance (default: 0.2): Probability for each image to be individually rotated after each epoch (randomly chooses degree of rotation)

@@ -47,7 +47,7 @@ class ImageSequence(Sequence):
         self.x = np.array([self.mutate(i) for i in self.x])
 
 class Train():
-    def __init__(self, batch_size=32, epochs=10, val_split=0.15, num_bins=32, max_val=3.5):
+    def __init__(self, batch_size=32, epochs=10, val_split=0.15, num_bins=32, max_val=0.4):
         """Trainer object for training a keras model. Specialized for redshift estimation.
         
         Args:
@@ -122,7 +122,7 @@ def train_model(model,
                 batch_size=32,
                 epochs=10,
                 num_rs_bins=32,
-                max_rs_val=3.5,
+                max_rs_val=0.4,
                 val_split=0.15,
                 rot_chance=0.4,
                 flip_chance=0.2):
@@ -141,7 +141,7 @@ def train_model(model,
         num_rs_bins (int, optional): Number of bins to use in model output (generates a pdf of this
             length). Defaults to 32.
         max_rs_val (float, optional): Maximum expected redshift value. Necessary for categorical
-            conversion. Defaults to 3.5.
+            conversion. Defaults to 0.4.
         val_split (float, optional): Percent of the data to use for validation. Defaults to 0.15.
         rot_chance (float, optional): Probability for each image to be individually flipped after
             each epoch (randomly chooses axis to flip across). Defaults to 0.4.

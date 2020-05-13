@@ -183,7 +183,7 @@ def main(mode=0):
 
     image_shape = (64,64,5)
     num_classes = 32
-    max_val = 3.5
+    max_val = 0.4
 
     if mode == 0:
         models = [
