@@ -13,7 +13,17 @@ from random import randint, random, shuffle
 import tensorflow as tf
 
 class RedshiftClassifier(ABC, Model):
-    def __init__(self, input_shape, num_bins=32, max_val=0.4, **kwargs):
+    """Allows defining of redshift estimation neural networks. In order to extend this abstract
+    class with a specific architecture, create a class that inherits this class. This subclass
+    at a minimum needs to define the build function, which must return a tuple that contains two
+    lists of keras layers, with the first list containing all input layers and the second list
+    containing all output layers.
+    
+    This abstract base class was created with the assumption that the functional keras API is used
+    to build architectures. Other paradigms for creating models have not been tested and may not
+    perform correctly.
+    """
+    def __init__(self, input_shape, num_bins=180, max_val=0.4, **kwargs):
 
         inputs, outputs = self.build(input_shape, num_bins, **kwargs)
         super().__init__(inputs=inputs, outputs=outputs)
@@ -34,7 +44,18 @@ class RedshiftClassifier(ABC, Model):
         pass
 
     def predict_redshift(self, imgs):
+        """Predicts the redshift value of a set of galaxy images.
+
+        Args:
+            imgs (np.array(X, 64, 64, 5)): Array of galaxy images
+
+        Returns:
+            np.array: predicted redshift values
+        """
         pdfs = self.predict(imgs)
+        return self.pdf_to_redshift(pdfs)
+
+    def pdf_to_redshift(self, pdfs):
         step = self.max_val / self.num_bins
         bin_starts = np.arange(0, self.max_val, step)
         return np.sum((bin_starts + (step / 2)) * pdfs, axis=1)
@@ -43,7 +64,7 @@ class RedshiftClassifier(ABC, Model):
               imgs,
               labels,
               batch_size = 32,
-              epochs = 20,
+              epochs = 30,
               val_split = 0.15,
               checkpoint_dir = 'checkpoints',
               rotate_chance = 0.4,
@@ -51,6 +72,31 @@ class RedshiftClassifier(ABC, Model):
               eval_every_epoch = False,
               test_imgs = None,
               test_labels = None):
+        """Trains the redshift model on the provided galaxy images.
+
+        Args:
+            imgs (np.array(X,64,64,5)): Array of galaxy images.
+            labels (np.array(X)): Array of true redshift values.
+            batch_size (int, optional): Number of images to include in every training batch. Defaults to 32.
+            epochs (int, optional): Number of epochs to train the model. Defaults to 30.
+            val_split (floa, optional): Percentage of the training data to be used for validation. Recommended that this be
+                                        changed to 0 when eval_every_epoch is True. Defaults to 0.15.
+            checkpoint_dir (str, optional): Directory where training checkpoints should be saved. Defaults to 'checkpoints'.
+            rotate_chance (float, optional): Probability that a given image will be rotated at the beginning of every epoch.
+                                             Rotations are equally likely to be 90, 180, or 270 degree rotations.This probability
+                                             is applied independently to every image every epoch. Defaults to 0.4.
+            flip_chance (float, optional): Probability that a given image will be flipped at the beginning of every epoch. Flips
+                                           can happen along either axis with equiprobabilty, but will not flip along both in the
+                                           same epoch. This probability is applied independently to every image every epoch.
+                                           Defaults to 0.2.
+            eval_every_epoch (bool, optional): Whether to evaluate the model at every epoch. If this is True, test_imgs and
+                                               test_labels must not be None. Defaults to False.
+            test_imgs (np.array(X,64,64,5), optional): Galaxy images for evaluation. Defaults to None.
+            test_labels (np.array(X), optional): True redshift values for evaluation. Defaults to None.
+
+        Raises:
+            ValueError: Raised if test_imgs or test_labels are not defined when eval_every_epoch is True
+        """
 
         makedirs(checkpoint_dir, exist_ok=True)
 
@@ -140,6 +186,8 @@ class ImageSequence(Sequence):
         self.x = np.array([self.mutate(i) for i in self.x])
 
 class RedshiftMetric(Metric):
+    """Evaluates the model using the metrics defined in https://arxiv.org/abs/1806.06607
+    """       
     def __init__(self, name='def_redshift_metric', rs_num_bins=32, rs_max_val=3.5, **kwargs):
         super(RedshiftMetric, self).__init__(name=name, **kwargs)
         self.rs_num_bins = rs_num_bins
@@ -156,6 +204,16 @@ class RedshiftMetric(Metric):
         return self.value
 
 class PredictionBias(RedshiftMetric):
+    """Calculates the bias of the model. Bias here is defined as the average distance
+    (and direction) of predictions from the true redshift value.
+
+    Args:
+        y_true (tf.Tensor)
+        y_pred (tf.Tensor)
+
+    Returns:
+        tf.Tensor: Tensor representing the average crps value
+    """
     def __init__(self, name='pred_bias', **kwargs):
         super(PredictionBias, self).__init__(name=name, **kwargs)
 
@@ -164,6 +222,15 @@ class PredictionBias(RedshiftMetric):
         self.value = tf.math.reduce_mean(residuals)
 
 class DeviationMAD(RedshiftMetric):
+    """Calculates the MAD deviation of the predictions.
+
+    Args:
+        y_true (tf.Tensor)
+        y_pred (tf.Tensor)
+
+    Returns:
+        tf.Tensor: Tensor representing the average crps value
+    """
     def __init__(self, name='MAD_dev', **kwargs):
         super(DeviationMAD, self).__init__(name=name, **kwargs)
 
@@ -174,6 +241,17 @@ class DeviationMAD(RedshiftMetric):
         self.value = tf.numpy_function(np.median, [tf.abs(residuals - res_med)], residuals.dtype) * 1.4826
 
 class FractionOutliers(RedshiftMetric):
+    """Calculates the percentage of outputs that are considered outliers. As in the source paper,
+    outliers are defined as redshift values that are more than 5 times the MAD deviation away from
+    the mean.
+
+    Args:
+        y_true (tf.Tensor)
+        y_pred (tf.Tensor)
+
+    Returns:
+        tf.Tensor: Tensor representing the average crps value
+    """
     def __init__(self, name='frac_outliers', **kwargs):
         super(FractionOutliers, self).__init__(name=name, **kwargs)
 
@@ -212,6 +290,11 @@ class AverageCRPS(RedshiftMetric):
         self.value = tf.reduce_mean(score)
 
 class EvalEveryEpoch(Callback):
+    """Allows evaluation of the model at every epoch of training. Useful for tracking the
+    training of the model for insight into how quickly the model converges or if it tends
+    to overfit at a certain stage of training.
+    """
+
     def __init__(self, test_imgs, test_labels):
         super(EvalEveryEpoch, self).__init__()
         self.imgs = test_imgs
@@ -444,19 +527,3 @@ class RedshiftClassifierInception(RedshiftClassifier):
             return Concatenate()([c4_out, c5_out, c6_out, p1_out])
         else:
             return Concatenate()([c4_out, c5_out, p1_out])
-
-if __name__ == "__main__":
-    import pickle
-    with open('../data/SDSS/prep/sdss-train-img.pkl', 'rb') as pkl:
-        train_img = pickle.load(pkl)
-    with open('../data/SDSS/prep/sdss-train-lab.pkl', 'rb') as pkl:
-        train_lab = pickle.load(pkl)
-    with open('../data/SDSS/prep/sdss-test-img.pkl', 'rb') as pkl:
-        test_img = pickle.load(pkl)
-    with open('../data/SDSS/prep/sdss-test-lab.pkl', 'rb') as pkl:
-        test_lab = pickle.load(pkl)
-
-    cl = RedshiftClassifierResNet((64,64,5), 32, 0.4)
-    cl.train(train_img, train_lab)
-    print(cl.metrics_names)
-    print(cl.evaluate(test_img, test_lab))
